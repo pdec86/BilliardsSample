@@ -2,8 +2,8 @@ package pl.pdec.billiards.logic;
 
 import pl.pdec.billiards.components.Ball;
 import pl.pdec.billiards.components.Table;
+import pl.pdec.billiards.helpers.VectorCalc;
 
-import java.awt.*;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -111,8 +111,8 @@ public class GameMechanicMath implements Runnable {
             double[] directionVector = ball.getDirection();
             double newX = ball.getX() + directionVector[0] * ball.getVelocity() * deltaTime;
             double newY = ball.getY() + directionVector[1] * ball.getVelocity() * deltaTime;
-            double distanceToTravel = Math.sqrt((newX - ball.getX()) * (newX - ball.getX())
-                    + (newY - ball.getY()) * (newY - ball.getY()));
+            double distanceToTravel = VectorCalc.distanceBetweenPoints(new double[]{newX, newY},
+                    new double[]{ball.getX(), ball.getY()});
 
             if (!hitOtherBall(findBallToHit(), distanceToTravel)) {
                 double[] newPosition = hitTableBorder(newX, newY, distanceToTravel, 0);
@@ -161,12 +161,12 @@ public class GameMechanicMath implements Runnable {
                     x0 = otherBall.getX();
                     y0 = otherBall.getY();
                     distance = Math.abs(a * x0 + b * y0 + c) / Math.sqrt(a * a + b * b);
-                    if (distance < Ball.DIMENSION) {
+                    if (distance <= Ball.DIMENSION) {
+                        double x1 = 0, y1 = 0;
                         // ball equation: (x - ball.getX)^2 + (y - ball.getY)^2 = Ball.DIMENSION
-                        // line equation: a*x + b*y + c = 0
+                        // line equation: a*x + b*y + c = 0    y = mx + q
                         if (b == 0 && a != 0) {
-                            double x1 = -c / a;
-                            double y1;
+                            x1 = -c / a;
                             // (x - getX)^2 + (y - getY)^2 - Ball.DIMENSION^2 = 0
                             // y^2 - 2*getY*y + getY^2 + (x - getX)^2 - Ball.DIMENSION^2 = 0;
                             double aEq = 1;
@@ -188,15 +188,6 @@ public class GameMechanicMath implements Runnable {
                             } else {
                                 continue;
                             }
-                            double[] vectorIntersection = new double[]{x1 - ball.getX(), y1 - ball.getY()};
-                            if (Math.abs(cross(ball.getDirection(), vectorIntersection)) < 0.01) {
-                                distanceBetweenBalls = Math.sqrt((otherBall.getX() - ball.getX()) * (otherBall.getX() - ball.getX())
-                                        + (otherBall.getY() - ball.getY()) * (otherBall.getY() - ball.getY()));
-                                if (distanceBetweenBalls <= distanceBetweenBallsMin) {
-                                    distanceBetweenBallsMin = distanceBetweenBalls;
-                                    ballToHit = otherBall;
-                                }
-                            }
                         } else if (b != 0) {
                             // y = m*x + q
                             // (x - getX)^2 + ((-a/b*x - c/b) - getY)^2 = Ball.DIMENSION^2
@@ -208,27 +199,42 @@ public class GameMechanicMath implements Runnable {
                             double cEq = otherBall.getX() * otherBall.getX() + (q - otherBall.getY()) * (q - otherBall.getY()) - Ball.DIMENSION / 2. * Ball.DIMENSION / .2;
 
                             if (aEq != 0) {
-                                double x1;
-                                double y1;
+                                double x2 = 0;
+                                double y2;
                                 double deltaEq = bEq * bEq - 4 * aEq * cEq;
                                 if (deltaEq > 0) {
                                     x1 = (-bEq - Math.sqrt(deltaEq)) / (2 * aEq);
-//                                    x2 = (-bEq + Math.sqrt(deltaEq)) / (2 * aEq);
+                                    x2 = (-bEq + Math.sqrt(deltaEq)) / (2 * aEq);
                                 } else if (deltaEq == 0) {
                                     x1 = -bEq / (2 * aEq);
                                 } else {
                                     continue;
                                 }
                                 y1 = m * x1 + q;
-
-                                double[] vectorIntersection = new double[]{x1 - ball.getX(), y1 - ball.getY()};
-                                if (Math.abs(cross(ball.getDirection(), vectorIntersection)) < 0.01) {
-                                    distanceBetweenBalls = Math.sqrt((otherBall.getX() - ball.getX()) * (otherBall.getX() - ball.getX())
-                                            + (otherBall.getY() - ball.getY()) * (otherBall.getY() - ball.getY()));
-                                    if (distanceBetweenBalls <= distanceBetweenBallsMin) {
-                                        distanceBetweenBallsMin = distanceBetweenBalls;
-                                        ballToHit = otherBall;
+                                if (x2 != 0) {
+                                    y2 = m * x2 + q;
+                                    double distanceY1 = distanceBetweenPoints(new double[]{ball.getX(), ball.getY()},
+                                            new double[]{x1, y1});
+                                    double distanceY2 = distanceBetweenPoints(new double[]{ball.getX(), ball.getY()},
+                                            new double[]{x2, y2});
+                                    if (distanceY2 < distanceY1) {
+                                        y1 = y2;
+                                        x1 = x2;
                                     }
+                                }
+                            }
+                        }
+
+                        if (x1 != 0 && y1 != 0) {
+                            double[] vectorIntersection = new double[]{x1 - ball.getX(), y1 - ball.getY()};
+                            if (Math.abs(cross(ball.getDirection(), vectorIntersection)) < 0.01) {
+                                distanceBetweenBalls = VectorCalc.distanceBetweenPoints(
+                                        new double[]{otherBall.getX(), otherBall.getY()},
+                                        new double[]{ball.getX(), ball.getY()});
+                                if (distanceBetweenBalls < Ball.DIMENSION
+                                        && distanceBetweenBalls <= distanceBetweenBallsMin) {
+                                    distanceBetweenBallsMin = distanceBetweenBalls;
+                                    ballToHit = otherBall;
                                 }
                             }
                         }
@@ -236,35 +242,13 @@ public class GameMechanicMath implements Runnable {
                 }
             }
 
-            //*/
-            /*double distance;
-            double newXTmp = ball.getX(), newYTmp = ball.getY();
-            for (double i = 0; i < distanceToTravel; i += 0.1) {
-                if (ballToHit != null) {
-                    break;
-                }
-                newXTmp = ball.getX() + i * directionVector[0];
-                newYTmp = ball.getY() + i * directionVector[1];
-
-                for (Ball otherBall : balls) {
-                    if (!ball.equals(otherBall)) {
-                        distance = Math.sqrt((otherBall.getX() - newXTmp) * (otherBall.getX() - newXTmp)
-                                + (otherBall.getY() - newYTmp) * (otherBall.getY() - newYTmp));
-                        if (distance < Ball.DIMENSION * 2) {
-                            ballToHit = otherBall;
-                            break;
-                        }
-                    }
-                }
-            }*/
-
             return ballToHit;
         }
 
         private boolean hitOtherBall(Ball ballToHit, double distanceToTravel) {
             if (ballToHit != null) {
-                double distanceBetweenBalls = Math.sqrt((ballToHit.getX() - ball.getX()) * (ballToHit.getX() - ball.getX())
-                        + (ballToHit.getY() - ball.getY()) * (ballToHit.getY() - ball.getY()));
+                double distanceBetweenBalls = VectorCalc.distanceBetweenPoints(new double[]{ballToHit.getX(), ballToHit.getY()},
+                        new double[]{ball.getX(), ball.getY()});
                 if (distanceBetweenBalls - Ball.DIMENSION <= distanceToTravel) {
                     double[] hitVector = new double[2];
                     hitVector[0] = ball.getX() - ballToHit.getX();
@@ -273,60 +257,21 @@ public class GameMechanicMath implements Runnable {
 
                     double[] reflectionVector = reflectVector(ball.getDirection(), hitVector);
                     reflectionVector = normalizeVector(reflectionVector);
-                    ball.setDirection(reflectionVector);
-                    return true;
-                }
-                for (double i = 0; i < distanceToTravel; i += 0.1) {
 
-                }
-                if (distanceBetweenBalls - Ball.DIMENSION <= distanceToTravel) {
-                    /*
-                    double[] hitVector = new double[2];
                     hitVector[0] = ballToHit.getX() - ball.getX();
                     hitVector[1] = ballToHit.getY() - ball.getY();
-                    double magnitude = Math.sqrt(hitVector[0] * hitVector[0] + hitVector[1] * hitVector[1]);
-                    hitVector[0] = hitVector[0] / magnitude;
-                    hitVector[1] = hitVector[1] / magnitude;
-
-                    double[] reflectionVector = calculateReflectionVector(hitVector, directionVector);
-
-                    double distanceToOtherBall = distanceToTravel - (distanceBetweenBalls + Ball.DIMENSION * 2);
-                    ball.setPosition(ball.getX() + distanceToOtherBall * directionVector[0],
-                            ball.getY() + distanceToOtherBall * directionVector[1]);
-                    ball.setDirection(reflectionVector);
-                    double distanceLeft = distanceToTravel - distanceToOtherBall;
-                    if (distanceLeft > 0) {
-                        ball.setPosition(ball.getX() + distanceLeft * reflectionVector[0],
-                                ball.getY() + distanceLeft * reflectionVector[1]);
-                    }
-                    ballToHit.setVelocity(ball.getVelocity());
+                    hitVector = VectorCalc.normalizeVector(hitVector);
                     ballToHit.setDirection(hitVector);
-                    ballHit = true;
-                    */
+                    ballToHit.setVelocity(ball.getVelocity());
 
-                    double[] hitVector = new double[2];
-                    hitVector[0] = ball.getX() - ballToHit.getX();
-                    hitVector[1] = ball.getY() - ballToHit.getY();
-                    hitVector = normalizeVector(hitVector);
-
-                    double[] reflectionVector = reflectVector(ball.getDirection(), hitVector);
-                    reflectionVector = normalizeVector(reflectionVector);
-
-                    double distanceToOtherBall = distanceToTravel - (distanceBetweenBalls - Ball.DIMENSION);
+                    double distanceToOtherBall = distanceToTravel - (distanceBetweenBalls - Ball.DIMENSION) - 1;
                     ball.setPosition(ball.getX() + distanceToOtherBall * ball.getDirection()[0],
                             ball.getY() + distanceToOtherBall * ball.getDirection()[1]);
                     ball.setDirection(reflectionVector);
 
-                    double distanceLeft = distanceToTravel - distanceToOtherBall;
-                    if (distanceLeft > 0) {
-                        ball.setPosition(ball.getX() + distanceLeft * reflectionVector[0],
-                                ball.getY() + distanceLeft * reflectionVector[1]);
-                    }
-
-                    hitVector[0] = ballToHit.getX() - ball.getX();
-                    hitVector[1] = ballToHit.getY() - ball.getY();
-                    ballToHit.setDirection(hitVector);
-                    ballToHit.setVelocity(ball.getVelocity());
+                    double distanceLeft = distanceToTravel - distanceToOtherBall + 1;
+                    ball.setPosition(ball.getX() + distanceLeft * ball.getDirection()[0],
+                            ball.getY() + distanceLeft * ball.getDirection()[1]);
                     return true;
                 }
             }
@@ -433,20 +378,5 @@ public class GameMechanicMath implements Runnable {
             return Math.sqrt((point2[0] - point1[0]) * (point2[0] - point1[0])
                     + (point2[1] - point1[1]) * (point2[1] - point1[1]));
         }
-
-        /*private double[] calculateReflectionVector(double[] hitVector, double[] directionVector) {
-            // cosTheta = (u * v) / (||u|| * ||v||);
-            double lengthHitVector = Math.sqrt(hitVector[0] * hitVector[0] + hitVector[1] * hitVector[1]);
-            double lengthBallVector = Math.sqrt(directionVector[0] * directionVector[0]
-                    + directionVector[1] * directionVector[1]);
-            double dotProduct = hitVector[0] * directionVector[0] + hitVector[1] * directionVector[1];
-            double cosTheta = dotProduct / (lengthHitVector * lengthBallVector);
-            double angleTheta = Math.acos(cosTheta);
-            double[] reflectionVector = new double[2];
-            reflectionVector[0] = ? * Math.sin(angleTheta);
-            reflectionVector[1] = ? * Math.cos(angleTheta);
-
-            return reflectionVector;
-        }*/
     }
 }
